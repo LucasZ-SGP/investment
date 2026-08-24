@@ -1,7 +1,7 @@
 import "./styles.css";
 import type { FactsFile, TargetFile } from "./types";
 import {
-  type Book, cacheBook, getToken, loadBook, loadSettings,
+  type Book, cacheBook, getToken, loadBook, loadSettings, normalise,
   saveSettings, type Settings, tokenState,
 } from "./store";
 import { EMPTY_FACTS, EMPTY_TARGETS, loadPrivate, saveBookRemote } from "./private";
@@ -72,9 +72,10 @@ async function boot() {
     },
 
     updateBook(book) {
-      ctx.book = book;
+      // Drop any legacy fields so they never reach the repo.
+      ctx.book = normalise(book);
       ctx.dirty = true;
-      cacheBook(book); // survives a reload even before it is committed
+      cacheBook(ctx.book); // survives a reload even before it is committed
       draw(app, ctx);
     },
 

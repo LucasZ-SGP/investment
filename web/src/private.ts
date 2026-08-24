@@ -14,7 +14,7 @@
  */
 import { readText, writeText } from "./github";
 import type { FactsFile, TargetFile } from "./types";
-import { type Book, EMPTY_BOOK } from "./store";
+import { type Book, EMPTY_BOOK, migrate } from "./store";
 import { DEFAULT_STRATEGY_DOC } from "./strategyDoc";
 
 /** Join a base directory with a relative path, tolerating stray slashes. */
@@ -80,7 +80,9 @@ export async function loadPrivate(
   let book: Book = { ...EMPTY_BOOK };
   if (bookFile) {
     try {
-      book = { ...EMPTY_BOOK, ...JSON.parse(bookFile.text) };
+      // Same normalisation as the local cache: a book written by an older
+      // build must not be read back in its old shape.
+      book = migrate(JSON.parse(bookFile.text));
     } catch {
       throw new Error(`${holdingsPath} 不是合法 JSON，请检查或删除该文件`);
     }

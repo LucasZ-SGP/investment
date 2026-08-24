@@ -76,17 +76,31 @@ export interface Book {
 
 export const EMPTY_BOOK: Book = { version: 2, contributions: [], holdings: [], updatedAt: "" };
 
-/** Books written before contributions existed carried a single cash figure.
- *  Turn it into one undated deposit so nothing is lost. */
+/** Normalise any stored book to the current shape.
+ *
+ *  Runs on every load, local and remote. Two cases matter:
+ *
+ *  - A genuinely old book: a single cashUsd figure and no contributions.
+ *    That figure was what remained after buying, so the implied total put in
+ *    is cash plus whatever the positions cost.
+ *  - A half-migrated book: real dated contributions alongside a stale
+ *    cashUsd, left by a save that spread an old object. Here the
+ *    contributions are authoritative -- rebuilding from cashUsd would throw
+ *    away records the user actually entered, dates included.
+ */
 export function migrate(raw: unknown): Book {
   const b = raw as Record<string, unknown>;
   if (!b || typeof b !== "object") return { ...EMPTY_BOOK };
-  if (b.version === 2) return { ...EMPTY_BOOK, ...(b as unknown as Book) };
 
-  const holdings = (b.holdings as Holding[]) ?? [];
+  const holdings = Array.isArray(b.holdings) ? (b.holdings as Holding[]) : [];
+  const existing = Array.isArray(b.contributions) ? (b.contributions as Contribution[]) : [];
+  const updatedAt = typeof b.updatedAt === "string" ? b.updatedAt : "";
+
+  if (existing.length) {
+    return { version: 2, contributions: existing, holdings, updatedAt };
+  }
+
   const cash = typeof b.cashUsd === "number" ? b.cashUsd : 0;
-  // The old cash figure was what remained after buying, so the implied total
-  // contributed is that plus everything already spent on positions.
   const spent = holdings.reduce((a, h) => a + h.shares * h.cost, 0);
   const total = cash + spent;
   const earliest = holdings.length
@@ -99,7 +113,19 @@ export function migrate(raw: unknown): Book {
       ? [{ id: crypto.randomUUID(), date: earliest, amount: total, note: "迁移自旧版本" }]
       : [],
     holdings,
-    updatedAt: (b.updatedAt as string) ?? "",
+    updatedAt,
+  };
+}
+
+/** Strip anything not part of the current shape before writing.
+ *  Spreading a loaded book carried `version: 1` and a stale `cashUsd`
+ *  straight back to disk, which then tripped the migration on the next load. */
+export function normalise(b: Book): Book {
+  return {
+    version: 2,
+    contributions: b.contributions ?? [],
+    holdings: b.holdings ?? [],
+    updatedAt: b.updatedAt ?? "",
   };
 }
 

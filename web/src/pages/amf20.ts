@@ -325,7 +325,7 @@ ${
       <td class="num ${fCls}">${p.fScore === null ? "—" : `${p.fScore}/${p.fAvail}`}</td>
       <td class="num">${p.evEbit === null ? "—" : p.evEbit.toFixed(2)}</td>
       <td class="num">${p.days}天${p.inScreen ? ' <span class="badge good">在名单</span>' : ""}</td>
-      <td><button class="btn drop" data-t="${esc(p.ticker)}" style="padding:2px 8px;font-size:11px">删</button></td>
+      <td><button class="btn drop" data-t="${esc(p.ticker)}" style="padding:2px 8px;font-size:11px;white-space:nowrap">删</button></td>
     </tr>${
       p.lots.length > 1
         ? `<tr><td colspan="13" style="text-align:left;padding-top:0;font-size:12px;color:var(--faint)">
@@ -378,7 +378,7 @@ ${
            <tr><td>${c.date.slice(0, 10)}</td>
              <td class="num ${c.amount >= 0 ? "pos" : "neg"}">${usd(c.amount)}</td>
              <td style="text-align:left">${esc(c.note ?? "")}</td>
-             <td><button class="btn dropc" data-id="${c.id}" style="padding:2px 8px;font-size:11px">删</button></td></tr>`).join("")}
+             <td><button class="btn dropc" data-id="${c.id}" style="padding:2px 8px;font-size:11px;white-space:nowrap">删</button></td></tr>`).join("")}
          </tbody></table></details>`
       : ""
   }
@@ -522,27 +522,64 @@ export function mount(root: HTMLElement, ctx: Ctx): void {
     ctx.updateBook(book);
   });
 
-  root.querySelectorAll<HTMLButtonElement>(".drop").forEach((b) =>
-    b.addEventListener("click", () => {
-      const t = b.dataset.t!;
-      const n = ctx.book.holdings.filter((h) => h.ticker === t).length;
-      if (!confirm(`删除 ${t} 的全部 ${n} 笔买入记录？现金会相应恢复。`)) return;
+  /**
+   * Two-click delete instead of window.confirm.
+   *
+   * A native dialog can be suppressed entirely -- by the browser, by an
+   * embedded webview, or by the user having ticked "block further dialogs" --
+   * and when that happens confirm() silently returns false and the button
+   * appears dead with nothing in the console. An in-page confirmation cannot
+   * be swallowed and shows exactly what is about to happen.
+   */
+  function armDelete(btn: HTMLButtonElement, label: string, run: () => void) {
+    const original = btn.textContent;
+    let armed = false;
+    let timer: number | undefined;
+
+    btn.addEventListener("click", () => {
+      if (armed) {
+        clearTimeout(timer);
+        try {
+          run();
+        } catch (e) {
+          btn.textContent = "失败";
+          btn.style.color = "var(--bad)";
+          console.error("删除失败:", e);
+        }
+        return;
+      }
+      armed = true;
+      btn.textContent = label;
+      btn.style.color = "var(--bad)";
+      btn.style.borderColor = "var(--bad)";
+      timer = window.setTimeout(() => {
+        armed = false;
+        btn.textContent = original;
+        btn.style.color = "";
+        btn.style.borderColor = "";
+      }, 4000);
+    });
+  }
+
+  root.querySelectorAll<HTMLButtonElement>(".drop").forEach((b) => {
+    const t = b.dataset.t!;
+    const n = ctx.book.holdings.filter((h) => h.ticker === t).length;
+    armDelete(b, `确认删除 ${n} 笔?`, () => {
       ctx.updateBook({
         ...ctx.book,
         holdings: ctx.book.holdings.filter((h) => h.ticker !== t),
       });
-    }),
-  );
+    });
+  });
 
-  root.querySelectorAll<HTMLButtonElement>(".dropc").forEach((b) =>
-    b.addEventListener("click", () => {
-      if (!confirm("删除这笔注资记录？")) return;
+  root.querySelectorAll<HTMLButtonElement>(".dropc").forEach((b) => {
+    armDelete(b, "确认?", () => {
       ctx.updateBook({
         ...ctx.book,
         contributions: ctx.book.contributions.filter((c) => c.id !== b.dataset.id),
       });
-    }),
-  );
+    });
+  });
 
   void loadHistory();
 }
