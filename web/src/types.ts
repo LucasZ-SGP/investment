@@ -16,6 +16,9 @@ export interface Candidate {
   /** True when no debt concept was tagged and enterprise value fell back to
    *  non-current liabilities. Treat the valuation as softer. */
   debtEstimated?: boolean;
+  /** Yield is probably a one-off (special dividend, return of capital), so it
+   *  should not be treated as a recurring withholding drag. */
+  divSuspect?: boolean;
 }
 
 /**
@@ -29,6 +32,7 @@ export interface ScreenConfig {
   fScoreWatch: number;
   minAdvUsd: number;
   advOrderCap: number;
+  divYieldSuspect: number;
 }
 
 export interface TargetFile {

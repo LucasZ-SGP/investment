@@ -232,8 +232,15 @@ function buildOrders(ctx: Ctx, capital: number, held: Set<string>) {
       flags.push(`占日均成交额 ${((cost / c.adv) * 100).toFixed(0)}%，分几天买`);
     }
     if (c.debtEstimated) flags.push("债务未披露，估值已按保守上限处理");
-    const drag = (c.divYield ?? 0) * 0.3;
-    if (drag > 0.015) flags.push(`股息预扣拖累 ${(drag * 100).toFixed(1)}%/年`);
+    if (c.divSuspect) {
+      flags.push(
+        `股息率 ${(((c.divYield ?? 0)) * 100).toFixed(1)}% 异常高，多半含特别股息，` +
+        `不按经常性拖累计算 —— 买前确认下一年的实际派息`,
+      );
+    } else {
+      const drag = (c.divYield ?? 0) * 0.3;
+      if (drag > 0.015) flags.push(`股息预扣拖累 ${(drag * 100).toFixed(1)}%/年`);
+    }
     orders.push({ c, shares, cost, flags });
   }
   return { orders, skipped, perPos };
@@ -456,8 +463,10 @@ ${
                <td style="text-align:left">${esc(c.name)}</td><td class="num">${c.metric.toFixed(2)}</td>
                <td>${esc(c.quality)}</td>
                <td class="num">${c.divYield ? (c.divYield * 100).toFixed(1) + "%" : "—"}</td>
-               <td class="num ${(c.divYield ?? 0) * 0.3 > 0.01 ? "neg" : ""}">${
-                 c.divYield ? "−" + (c.divYield * 0.3 * 100).toFixed(2) + "%" : "—"
+               <td class="num ${c.divSuspect ? "" : (c.divYield ?? 0) * 0.3 > 0.01 ? "neg" : ""}">${
+                 c.divSuspect
+                   ? '<span class="badge warn">特别股息?</span>'
+                   : c.divYield ? "−" + (c.divYield * 0.3 * 100).toFixed(2) + "%" : "—"
                }</td></tr>`,
              )
              .join("")}</tbody></table></div></details>`
