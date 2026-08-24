@@ -14,7 +14,6 @@
 import type { ValuePoint } from "./metrics";
 
 export interface Settings {
-  capitalUsd: number;
   usWeight: number; // % of the book in the US basket
   jpWeight: number; // % in the Japan basket; cash is the remainder
   usPositions: number;
@@ -32,7 +31,6 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
-  capitalUsd: 50_000,
   // Japan is off by default. Two independent reasons, both in 策略 page:
   // the evidence for it is weak, and there is no free data source that gives
   // current Japanese prices. Turn it on only if both change.
@@ -58,14 +56,63 @@ export interface Holding {
   note?: string;
 }
 
+/** A dated deposit into (or withdrawal from) the strategy. Capital is the sum
+ *  of these rather than a number in settings, so adding money is an event with
+ *  a date -- which is what XIRR needs to measure the return on money actually
+ *  committed, including the drag of cash waiting to be deployed. */
+export interface Contribution {
+  id: string;
+  date: string; // ISO
+  amount: number; // positive = deposit, negative = withdrawal
+  note?: string;
+}
+
 export interface Book {
-  version: 1;
-  cashUsd: number;
+  version: 2;
+  contributions: Contribution[];
   holdings: Holding[];
   updatedAt: string;
 }
 
-export const EMPTY_BOOK: Book = { version: 1, cashUsd: 0, holdings: [], updatedAt: "" };
+export const EMPTY_BOOK: Book = { version: 2, contributions: [], holdings: [], updatedAt: "" };
+
+/** Books written before contributions existed carried a single cash figure.
+ *  Turn it into one undated deposit so nothing is lost. */
+export function migrate(raw: unknown): Book {
+  const b = raw as Record<string, unknown>;
+  if (!b || typeof b !== "object") return { ...EMPTY_BOOK };
+  if (b.version === 2) return { ...EMPTY_BOOK, ...(b as unknown as Book) };
+
+  const holdings = (b.holdings as Holding[]) ?? [];
+  const cash = typeof b.cashUsd === "number" ? b.cashUsd : 0;
+  // The old cash figure was what remained after buying, so the implied total
+  // contributed is that plus everything already spent on positions.
+  const spent = holdings.reduce((a, h) => a + h.shares * h.cost, 0);
+  const total = cash + spent;
+  const earliest = holdings.length
+    ? holdings.map((h) => h.openedAt).sort()[0]
+    : new Date().toISOString();
+
+  return {
+    version: 2,
+    contributions: total > 0
+      ? [{ id: crypto.randomUUID(), date: earliest, amount: total, note: "迁移自旧版本" }]
+      : [],
+    holdings,
+    updatedAt: (b.updatedAt as string) ?? "",
+  };
+}
+
+/** Total deposited, less any withdrawals. */
+export function totalContributed(b: Book): number {
+  return b.contributions.reduce((a, c) => a + c.amount, 0);
+}
+
+/** Cash not yet deployed into positions. */
+export function uninvestedCash(b: Book): number {
+  const spent = b.holdings.reduce((a, h) => a + h.shares * h.cost, 0);
+  return totalContributed(b) - spent;
+}
 
 const SETTINGS_KEY = "sc.settings";
 const BOOK_KEY = "sc.book";
@@ -87,7 +134,7 @@ export function saveSettings(s: Settings): void {
 export function loadBook(): Book {
   try {
     const raw = localStorage.getItem(BOOK_KEY);
-    return raw ? { ...EMPTY_BOOK, ...JSON.parse(raw) } : { ...EMPTY_BOOK };
+    return raw ? migrate(JSON.parse(raw)) : { ...EMPTY_BOOK };
   } catch {
     return { ...EMPTY_BOOK };
   }

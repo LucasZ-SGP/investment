@@ -19,9 +19,15 @@ export interface Ctx {
   book: Book;
   /** Empty until unlocked. Every page except 设置 requires this. */
   unlocked: boolean;
+  /** True when the local book differs from what is stored in the private repo.
+   *  Writes are manual: auto-saving would put a commit in the repo on every
+   *  keystroke-sized edit. */
+  dirty: boolean;
   save(patch: Partial<Settings>): void;
-  /** Writes holdings to the private repo, then re-renders. */
-  saveBook(book: Book): Promise<void>;
+  /** Local edit. Marks the book dirty; does not touch the network. */
+  updateBook(book: Book): void;
+  /** Push the local book to the private repo. One commit per press. */
+  commitBook(): Promise<void>;
   refresh(): void;
   unlock(passphrase?: string): Promise<void>;
 }
@@ -56,6 +62,7 @@ async function boot() {
     // authoritative and replaces it on unlock.
     book: loadBook(),
     unlocked: false,
+    dirty: false,
 
     save(patch) {
       ctx.settings = { ...ctx.settings, ...patch };
@@ -64,15 +71,24 @@ async function boot() {
       draw(app, ctx);
     },
 
-    async saveBook(book) {
+    updateBook(book) {
       ctx.book = book;
-      cacheBook(book);
-      draw(app, ctx); // optimistic: reflect the change before the round-trip
+      ctx.dirty = true;
+      cacheBook(book); // survives a reload even before it is committed
+      draw(app, ctx);
+    },
+
+    async commitBook() {
       const token = await getToken();
-      if (!token || !ctx.settings.privateRepo) return;
+      if (!token || !ctx.settings.privateRepo) {
+        throw new Error("尚未解锁或未配置私有仓库");
+      }
       bookSha = await saveBookRemote(
-        token, ctx.settings.privateRepo, ctx.settings.holdingsPath, book, bookSha,
+        token, ctx.settings.privateRepo, ctx.settings.holdingsPath, ctx.book, bookSha,
       );
+      ctx.dirty = false;
+      cacheBook(ctx.book);
+      draw(app, ctx);
     },
 
     refresh() {
@@ -92,6 +108,7 @@ async function boot() {
       ctx.book = data.book;
       bookSha = data.bookSha;
       cacheBook(data.book);
+      ctx.dirty = false;
       ctx.unlocked = true;
       draw(app, ctx);
     },
@@ -99,6 +116,15 @@ async function boot() {
 
   applyTheme(ctx.settings);
   window.addEventListener("hashchange", () => draw(app, ctx));
+
+  // Unsaved edits live only in this browser; leaving would strand them.
+  window.addEventListener("beforeunload", (e) => {
+    if (ctx.dirty) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
+
   draw(app, ctx);
 
   // A plaintext token can unlock without asking; an encrypted one cannot.
@@ -172,7 +198,7 @@ function draw(app: HTMLElement, ctx: Ctx) {
   app.innerHTML = `
     <nav class="sidebar">
       <div class="brand"><h1>投资台</h1>
-        <p>${ctx.unlocked ? "已解锁" : "🔒 已锁定"}</p></div>
+        <p>${ctx.unlocked ? (ctx.dirty ? "● 有未保存改动" : "已解锁") : "🔒 已锁定"}</p></div>
       ${nav}
     </nav>
     <main class="main" id="page-root">${locked ? lockScreen(ctx) : page.render(ctx)}</main>`;

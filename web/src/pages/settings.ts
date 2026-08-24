@@ -16,11 +16,7 @@ export function render(ctx: Ctx): string {
 
 <h3>配置比例</h3>
 <div class="card">
-  <div class="grid c3">
-    <div>
-      <label for="cap">总投入资金（USD）</label>
-      <input type="number" id="cap" value="${s.capitalUsd}" min="1000" step="1000" />
-    </div>
+  <div class="grid c2">
     <div>
       <label for="usw">美股篮子（%）</label>
       <input type="number" id="usw" value="${s.usWeight}" min="0" max="100" step="5" />
@@ -30,7 +26,11 @@ export function render(ctx: Ctx): string {
       <input type="number" id="jpw" value="${s.jpWeight}" min="0" max="100" step="5" />
     </div>
   </div>
-  <p class="hint">现金 = <strong id="cashpct">${cash}%</strong>（自动计算）</p>
+  <p class="hint">
+    现金 = <strong id="cashpct">${cash}%</strong>（自动计算）。
+    <strong>投入金额不在这里设置</strong> —— 它由 AMF-20 页面的注资记录累加得出，
+    这样每笔资金都有日期，年化收益才算得准。
+  </p>
 
   <div class="grid c3">
     <div>
@@ -186,7 +186,6 @@ export function mount(root: HTMLElement, ctx: Ctx): void {
       return;
     }
     ctx.save({
-      capitalUsd: num("#cap"),
       usWeight: num("#usw"),
       jpWeight: num("#jpw"),
       usPositions: num("#usn"),
