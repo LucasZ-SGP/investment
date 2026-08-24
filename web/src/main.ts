@@ -83,7 +83,9 @@ async function boot() {
       const token = await getToken(passphrase);
       if (!token) throw new Error("需要口令解锁已保存的 token");
       if (!ctx.settings.privateRepo) throw new Error("尚未配置私有仓库");
-      const data = await loadPrivate(token, ctx.settings.privateRepo, ctx.settings.holdingsPath);
+      const data = await loadPrivate(
+        token, ctx.settings.privateRepo, ctx.settings.basePath, ctx.settings.holdingsPath,
+      );
       ctx.strategy = data.strategy;
       ctx.targets = data.targets;
       ctx.facts = data.facts;

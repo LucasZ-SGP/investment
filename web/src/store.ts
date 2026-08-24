@@ -23,7 +23,10 @@ export interface Settings {
   rebalanceMonth: number; // 1-12
   /** "owner/name" of the PRIVATE repo holding the strategy, screen and book. */
   privateRepo: string;
-  /** Path within that repo where holdings are stored. */
+  /** Directory within that repo holding this project's files. Empty means the
+   *  repo root; set it when sharing the repo with unrelated data. */
+  basePath: string;
+  /** Path to the holdings file, relative to the repo root. */
   holdingsPath: string;
   theme: "auto" | "light" | "dark";
 }
@@ -40,7 +43,8 @@ export const DEFAULTS: Settings = {
   trimPct: 8,
   rebalanceMonth: 6,
   privateRepo: "",
-  holdingsPath: "holdings.json",
+  basePath: "investment",
+  holdingsPath: "investment/holdings.json",
   theme: "auto",
 };
 

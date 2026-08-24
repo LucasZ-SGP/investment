@@ -91,10 +91,18 @@ export function render(ctx: Ctx): string {
     与承载本站点的公开仓库分开；填入公开仓库会被拒绝。
   </div>
 
+  <label for="bpath">路径前缀</label>
+  <input type="text" id="bpath" value="${s.basePath}" placeholder="investment" />
+  <div class="hint">
+    本项目在该仓库中的子目录。留空表示仓库根目录；
+    与其它数据共用一个仓库时填写，例如 <code>investment</code>，
+    则策略文档为 <code>investment/strategy.md</code>、名单为 <code>investment/data/targets.json</code>。
+  </div>
+
   <label for="hpath">持仓文件路径</label>
   <input type="text" id="hpath" value="${s.holdingsPath}" placeholder="holdings.json" />
   <div class="hint">
-    私有仓库内的相对路径。可放在子目录，例如 <code>me/holdings.json</code>；
+    相对于仓库根目录的完整路径（<strong>不受上面的前缀影响</strong>）。
     文件不存在时会在第一次录入持仓时自动创建。
   </div>
 
@@ -200,7 +208,11 @@ export function mount(root: HTMLElement, ctx: Ctx): void {
     const repo = $<HTMLInputElement>("#repo").value.trim();
     const pat = $<HTMLInputElement>("#pat").value.trim();
     const pass = $<HTMLInputElement>("#pass").value;
-    ctx.save({ privateRepo: repo, holdingsPath: $<HTMLInputElement>("#hpath").value.trim() || "holdings.json" });
+    ctx.save({
+      privateRepo: repo,
+      basePath: $<HTMLInputElement>("#bpath").value.trim().replace(/^\/+|\/+$/g, ""),
+      holdingsPath: $<HTMLInputElement>("#hpath").value.trim() || "holdings.json",
+    });
 
     const say = (t: string, ok: boolean | null) => {
       m.textContent = t;

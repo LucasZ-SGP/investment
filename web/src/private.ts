@@ -17,11 +17,19 @@ import type { FactsFile, TargetFile } from "./types";
 import { type Book, EMPTY_BOOK } from "./store";
 import { DEFAULT_STRATEGY_DOC } from "./strategyDoc";
 
-export const PATHS = {
-  strategy: "strategy.md",
-  targets: "data/targets.json",
-  facts: "data/facts.json",
-} as const;
+/** Join a base directory with a relative path, tolerating stray slashes. */
+function under(base: string, rel: string): string {
+  const b = base.replace(/^\/+|\/+$/g, "");
+  return b ? `${b}/${rel}` : rel;
+}
+
+export function paths(basePath: string) {
+  return {
+    strategy: under(basePath, "strategy.md"),
+    targets: under(basePath, "data/targets.json"),
+    facts: under(basePath, "data/facts.json"),
+  };
+}
 
 export interface PrivateData {
   strategy: string;
@@ -53,19 +61,20 @@ async function json<T>(token: string, repo: string, path: string, fallback: T,
 }
 
 export async function loadPrivate(
-  token: string, repo: string, holdingsPath: string,
+  token: string, repo: string, basePath: string, holdingsPath: string,
 ): Promise<PrivateData> {
   const missing: string[] = [];
+  const P = paths(basePath);
 
   // Fetched together: four sequential round-trips to api.github.com otherwise.
   const [doc, targets, facts, bookFile] = await Promise.all([
-    readText(token, repo, PATHS.strategy),
-    json<TargetFile>(token, repo, PATHS.targets, EMPTY_TARGETS, missing),
-    json<FactsFile>(token, repo, PATHS.facts, EMPTY_FACTS, missing),
+    readText(token, repo, P.strategy),
+    json<TargetFile>(token, repo, P.targets, EMPTY_TARGETS, missing),
+    json<FactsFile>(token, repo, P.facts, EMPTY_FACTS, missing),
     readText(token, repo, holdingsPath),
   ]);
 
-  if (!doc) missing.push(PATHS.strategy);
+  if (!doc) missing.push(P.strategy);
 
   // A missing holdings file is normal on first run, not an error.
   let book: Book = { ...EMPTY_BOOK };
@@ -101,7 +110,7 @@ export async function saveBookRemote(
 
 /** Write the strategy document back, e.g. after the user edits it. */
 export async function saveStrategy(
-  token: string, repo: string, text: string, sha: string | null,
+  token: string, repo: string, basePath: string, text: string, sha: string | null,
 ): Promise<string> {
-  return writeText(token, repo, PATHS.strategy, text, sha, "strategy: update");
+  return writeText(token, repo, paths(basePath).strategy, text, sha, "strategy: update");
 }
