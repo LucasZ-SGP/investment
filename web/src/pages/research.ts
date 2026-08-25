@@ -278,6 +278,8 @@ function priceSection(r: Report): string {
       <td class="num">${x.n}</td></tr>`;
   };
   const best = pa.trimmed ?? pa.all;
+  // Enough anchors to show a trajectory, too few for a meaningful regression.
+  const noRegression = !pa.all && !pa.trimmed;
 
   return `
 <h4>价格轨迹 Price Trajectory</h4>
@@ -308,7 +310,12 @@ function priceSection(r: Report): string {
 <p class="hint">市场收益取自 Ken French Data Library（CRSP 全市场，含股息再投资）。</p>
 
 <h4>${labelWithNote("beta")}<span style="font-weight:400;color:var(--muted)"> —— 系统性风险</span></h4>
-<div class="chart-wrap"><table>
+${noRegression
+    ? `<div class="callout warn"><span class="title">观测期不足，不做回归</span>
+       <p>仅有 ${pa.totalPeriods} 个年度观测。样本这么小时，${labelWithNote("beta")} 与
+       ${labelWithNote("alpha")} 会被单期行情完全主导，算出来的数字看似精确、实则无意义。
+       上方的逐期收益与累计表现仍然可用。</p></div>`
+    : `<div class="chart-wrap"><table>
   <thead><tr><th>口径</th><th class="num">${labelWithNote("beta")}</th>
     <th class="num">${labelWithNote("alpha")} /年</th><th class="num">${labelWithNote("r2")}</th>
     <th class="num">观测数 n</th></tr></thead>
@@ -317,7 +324,7 @@ function priceSection(r: Report): string {
     ${reg("trimmed", `剔除异常值 Outlier removed<div style="font-size:11px;color:var(--faint)">${pa.trimmedPeriod}</div>`)}
     ${reg("recent", "最近五期 Recent five")}
   </tbody>
-</table></div>
+</table></div>`}
 ${pa.all && pa.trimmed && Math.abs(pa.all.beta - pa.trimmed.beta) > 1
     ? `<div class="callout warn"><span class="title">全样本的 Beta 不可采信</span>
        <p>剔除单一异常期（${pa.trimmedPeriod}）后，Beta 由 ${pa.all.beta.toFixed(2)} 降至
