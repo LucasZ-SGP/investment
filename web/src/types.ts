@@ -5,8 +5,11 @@ export interface Candidate {
   ticker: string;
   market: "US" | "JP";
   name: string;
-  /** EV/EBIT. Lower is cheaper. */
+  /** EV/EBIT on the trailing twelve months. Lower is cheaper. */
   metric: number;
+  /** The same multiple on the last fiscal year, for contrast. A wide gap means
+   *  earnings have moved since the 10-K. */
+  evEbitFy?: number | null;
   /** F-Score summary, e.g. "F 8/9". */
   quality: string;
   rank: number;
@@ -33,6 +36,7 @@ export interface ScreenConfig {
   minAdvUsd: number;
   advOrderCap: number;
   divYieldSuspect: number;
+  valuationBasis?: string;
 }
 
 export interface TargetFile {

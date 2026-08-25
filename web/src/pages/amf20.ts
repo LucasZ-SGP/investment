@@ -402,7 +402,11 @@ ${
              <td class="num"><strong>${o.shares.toLocaleString()}</strong></td>
              <td class="num">$${o.c.price!.toFixed(2)}</td>
              <td class="num">${usd(o.cost)}</td>
-             <td class="num">${o.c.metric.toFixed(2)}</td>
+             <td class="num">${o.c.metric.toFixed(2)}${
+               o.c.evEbitFy && Math.abs(o.c.metric / o.c.evEbitFy - 1) > 0.15
+                 ? `<div style="font-size:10px;color:var(--faint)">财年 ${o.c.evEbitFy.toFixed(2)}</div>`
+                 : ""
+             }</td>
              <td class="num">${esc(o.c.quality.replace("F ", ""))}</td>
            </tr>${
              o.flags.length
@@ -452,10 +456,22 @@ ${
       ? `<details style="margin-top:20px"><summary style="cursor:pointer;font-size:13.5px;color:var(--muted)">
            完整筛选名单（${ctx.targets.us.length} 只，${ctx.targets.asOf}）</summary>
          <div class="chart-wrap"><table>
-           <thead><tr><th>#</th><th>代码</th><th>名称</th><th>EV/EBIT</th><th>F-Score</th><th>股息率</th><th>预扣拖累</th></tr></thead>
+           <thead><tr><th>#</th><th>代码</th><th>名称</th><th>EV/EBIT<div style="font-weight:400;font-size:10px">TTM</div></th>
+             <th>EV/EBIT<div style="font-weight:400;font-size:10px">上一财年</div></th>
+             <th>F-Score</th><th>股息率</th><th>预扣拖累</th></tr></thead>
            <tbody>${ctx.targets.us.map((c) => `<tr><td class="num">${c.rank}</td>
              <td><strong>${esc(c.ticker)}</strong></td>
-             <td style="text-align:left">${esc(c.name)}</td><td class="num">${c.metric.toFixed(2)}</td>
+             <td style="text-align:left">${esc(c.name)}</td>
+             <td class="num"><strong>${c.metric.toFixed(2)}</strong></td>
+             <td class="num" style="color:var(--faint)">${
+               c.evEbitFy ? c.evEbitFy.toFixed(2) : "—"
+             }${
+               c.evEbitFy && Math.abs(c.metric / c.evEbitFy - 1) > 0.15
+                 ? ` <span class="badge ${c.metric > c.evEbitFy ? "bad" : "good"}">${
+                     c.metric > c.evEbitFy ? "盈利下滑" : "盈利改善"
+                   }</span>`
+                 : ""
+             }</td>
              <td>${esc(c.quality)}</td>
              <td class="num">${c.divYield ? (c.divYield * 100).toFixed(1) + "%" : "—"}</td>
              <td class="num ${c.divSuspect ? "" : (c.divYield ?? 0) * 0.3 > 0.01 ? "neg" : ""}">${
