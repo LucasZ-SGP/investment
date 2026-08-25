@@ -80,6 +80,7 @@ export interface Report {
     latestForm?: string | null;
     latestFiling?: string | null;
   };
+  narrative?: Narrative;
   /** concept -> { "2025": value }. Keys are English so terms.ts can pair them
    *  with a Chinese label at render time. */
   annual: Record<string, Record<string, number>>;
@@ -126,4 +127,31 @@ export interface PriceAnalysis {
   stockSd: number;
   marketSd: number;
   peak: number;
+}
+
+/** Narrative sections lifted from the company's own annual report. */
+export interface Narrative {
+  businessOverview?: string;
+  competition?: string;
+  riskHeadings?: string[];
+  source?: { form: string; filed: string; url: string };
+}
+
+/** Editor-written sector background, keyed by SIC ranges. Kept separate from
+ *  anything quoted from a filing so the two are never confused. */
+export interface Sector {
+  id: string;
+  name: string;
+  nameEn: string;
+  sic: [number, number][];
+  howItWorks: string;
+  competition: string;
+  regulation: string;
+  technology: string;
+  valueTrap: string;
+}
+
+export interface Industries {
+  _updated?: string;
+  sectors: Sector[];
 }

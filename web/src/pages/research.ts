@@ -1,5 +1,5 @@
 import type { Ctx } from "../main";
-import type { Report } from "../types";
+import type { Report, Sector } from "../types";
 import { label, labelWithNote } from "../terms";
 
 export const title = "研究";
@@ -162,6 +162,82 @@ function observations(r: Report): { level: "bad" | "warn" | "good" | ""; text: s
   }
 
   return out;
+}
+
+/** Sector background for a company's SIC code. */
+function sectorFor(sic: string | undefined, sectors: Sector[]): Sector | null {
+  const n = parseInt(sic ?? "", 10);
+  if (!isFinite(n)) return null;
+  return sectors.find((x) => x.sic.some(([lo, hi]) => n >= lo && n <= hi)) ?? null;
+}
+
+/**
+ * What the company says it does, quoted from its own annual report.
+ *
+ * Extraction is heuristic -- filings vary enormously in layout -- so anything
+ * that does not read like a business description is dropped and the filing is
+ * linked instead. A plausible-looking fragment lifted from the wrong section
+ * would be worse than nothing.
+ */
+function businessSection(r: Report): string {
+  const n = r.narrative;
+  const src = n?.source;
+  const link = src
+    ? `<a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.form)} · ${esc(src.filed)}</a>`
+    : "";
+
+  if (!n?.businessOverview && !n?.competition) {
+    return `<div class="callout warn"><span class="title">未能自动提取业务描述</span>
+      <p>该公司年报的排版无法可靠解析。${src ? `请直接查阅原文：${link}` : ""}</p></div>`;
+  }
+
+  return `
+${n.businessOverview ? `
+<h4>业务概述 Business Overview</h4>
+<div class="card" style="border-left:3px solid var(--border-strong)">
+  <p style="margin:0;font-size:14.5px;line-height:1.75">${esc(n.businessOverview)}</p>
+</div>` : ""}
+${n.competition ? `
+<h4>竞争格局（公司自述）Competition, in the company's words</h4>
+<div class="card" style="border-left:3px solid var(--border-strong)">
+  <p style="margin:0;font-size:14.5px;line-height:1.75">${esc(n.competition)}</p>
+</div>` : ""}
+${n.riskHeadings?.length ? `
+<h4>风险因素 Risk Factors <span class="badge">公司自行披露 ${n.riskHeadings.length} 条</span></h4>
+<div class="card">
+  <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.7">
+    ${n.riskHeadings.map((h) => `<li style="margin-bottom:7px">${esc(h)}</li>`).join("")}
+  </ul>
+  <p class="hint" style="margin-bottom:0">
+    这些是公司在年报 Item 1A 中<strong>自己列出</strong>的风险，法律上要求如实披露。
+    排序按原文，不代表严重程度。
+  </p>
+</div>` : ""}
+<p class="hint">以上均为公司年报原文摘录${link ? `（来源：${link}）` : ""}，未经改写。</p>`;
+}
+
+/** Editor-written sector background. Explicitly separated from anything quoted
+ *  from a filing, so the reader always knows which is which. */
+function sectorSection(sec: Sector | null): string {
+  if (!sec) return "";
+  const block = (zh: string, en: string, body: string) => `
+    <h4 style="margin-top:18px">${zh} <span style="color:var(--faint);font-weight:400">${en}</span></h4>
+    <p style="font-size:14.5px;line-height:1.75;margin:0">${body}</p>`;
+  return `
+<div class="callout" style="border-left-color:var(--accent)">
+  <span class="title">板块：${esc(sec.name)} <span style="color:var(--faint);font-weight:400">${esc(sec.nameEn)}</span></span>
+  <p>以下是<strong>编者撰写的行业背景</strong>，不是从财报提取的事实。它的作用是让你在读财务数字前，
+     先知道这门生意是怎么回事、钱从哪来、什么会杀死它。</p>
+</div>
+<div class="card">
+  ${block("这门生意怎么做", "How it works", sec.howItWorks)}
+  ${block("竞争格局", "Competitive dynamics", sec.competition)}
+  ${block("监管与政策", "Regulation", sec.regulation)}
+  ${block("技术与结构性变化", "Technology & structural change", sec.technology)}
+  <h4 style="margin-top:18px;color:var(--bad)">深度价值在这个板块的典型陷阱
+    <span style="color:var(--faint);font-weight:400">Value traps here</span></h4>
+  <p style="font-size:14.5px;line-height:1.75;margin:0">${sec.valueTrap}</p>
+</div>`;
 }
 
 function financialTables(r: Report): string {
@@ -399,14 +475,15 @@ ${loading ? `<div class="empty"><div class="big">⏳</div>正在载入 ${esc(loa
 ${error ? `<div class="callout bad"><span class="title">载入失败</span><p>${esc(error)}</p></div>` : ""}
 ${!current && !loading ? `<div class="empty"><div class="big">◇</div>
    <p>选择上方任一标的查看报告</p></div>` : ""}
-${report ? renderReport(report) : ""}
+${report ? renderReport(report, ctx.industries.sectors ?? []) : ""}
 </div>`;
 }
 
-function renderReport(r: Report): string {
+function renderReport(r: Report, sectors: Sector[]): string {
   const v = r.valuation;
   const m = r.meta;
   const obs = observations(r);
+  const sec = sectorFor(m.sic, sectors);
   const badge = { bad: "bad", warn: "warn", good: "good", "": "" } as const;
 
   return `
@@ -418,6 +495,12 @@ function renderReport(r: Report): string {
   最近定期报告 ${esc(m.latestForm ?? "—")} ${esc(m.latestFiling ?? "")} ·
   报告生成于 ${esc(r.generated)}
 </p>
+
+<h3>这家公司是做什么的 What the Company Does</h3>
+${businessSection(r)}
+
+<h3>行业背景 Sector Context</h3>
+${sectorSection(sec)}
 
 <h3>估值 Valuation</h3>
 <div class="grid c4">

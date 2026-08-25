@@ -13,7 +13,7 @@
  * or any position.
  */
 import { readText, writeText } from "./github";
-import type { FactsFile, Report, TargetFile } from "./types";
+import type { FactsFile, Industries, Report, TargetFile } from "./types";
 import { type Book, EMPTY_BOOK, migrate } from "./store";
 import { DEFAULT_STRATEGY_DOC } from "./strategyDoc";
 
@@ -26,6 +26,7 @@ function under(base: string, rel: string): string {
 export function paths(basePath: string) {
   return {
     strategy: under(basePath, "strategy.md"),
+    industries: under(basePath, "industries.json"),
     targets: under(basePath, "data/targets.json"),
     facts: under(basePath, "data/facts.json"),
   };
@@ -38,6 +39,7 @@ export interface PrivateData {
   facts: FactsFile;
   book: Book;
   bookSha: string | null;
+  industries: Industries;
   /** Paths that were missing, so the UI can explain what is not set up yet. */
   missing: string[];
 }
@@ -67,11 +69,12 @@ export async function loadPrivate(
   const P = paths(basePath);
 
   // Fetched together: four sequential round-trips to api.github.com otherwise.
-  const [doc, targets, facts, bookFile] = await Promise.all([
+  const [doc, targets, facts, bookFile, industries] = await Promise.all([
     readText(token, repo, P.strategy),
     json<TargetFile>(token, repo, P.targets, EMPTY_TARGETS, missing),
     json<FactsFile>(token, repo, P.facts, EMPTY_FACTS, missing),
     readText(token, repo, holdingsPath),
+    json<Industries>(token, repo, P.industries, { sectors: [] }, missing),
   ]);
 
   if (!doc) missing.push(P.strategy);
@@ -95,6 +98,7 @@ export async function loadPrivate(
     facts,
     book,
     bookSha: bookFile?.sha ?? null,
+    industries,
     missing,
   };
 }
