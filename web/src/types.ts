@@ -60,3 +60,66 @@ export interface FactsFile {
   asOf: string | null;
   facts: Record<string, Fact>;
 }
+
+/** One company research report, generated nightly by the private pipeline. */
+export interface Report {
+  ticker: string;
+  cik: number;
+  generated: string;
+  meta: {
+    name?: string;
+    sic?: string;
+    sicDescription?: string;
+    country?: string;
+    exchanges?: string[];
+    fiscalYearEnd?: string;
+    latestForm?: string | null;
+    latestFiling?: string | null;
+  };
+  /** concept -> { "2025": value }. Keys are English so terms.ts can pair them
+   *  with a Chinese label at render time. */
+  annual: Record<string, Record<string, number>>;
+  quarterly: Record<string, { end: string; val: number; fy?: number; fp?: string }[]>;
+  ttm: Record<string, { value: number | null; basis: string }>;
+  latestBalance: Record<string, { value: number | null; date: string | null }>;
+  sharesOutstanding: Record<string, number>;
+  priceAnchors: { date: string; float: number; shares: number; price: number }[];
+  priceAnalysis: PriceAnalysis | null;
+  valuation: {
+    price: number | null;
+    shares: number | null;
+    marketCap: number | null;
+    cash: number;
+    debt: number;
+    enterpriseValue: number | null;
+    evEbitTtm: number | null;
+    evCfoTtm: number | null;
+    peTtm: number | null;
+    pb: number | null;
+    ebitBasis: string;
+  };
+}
+
+export interface Regression {
+  beta: number;
+  alpha: number;
+  r2: number | null;
+  residSd: number;
+  n: number;
+}
+
+export interface PriceAnalysis {
+  periods: { from: string; to: string; years: number; stock: number; market: number; rf: number }[];
+  all: Regression | null;
+  trimmed: Regression | null;
+  trimmedPeriod: string;
+  recent: Regression | null;
+  underperformed: number;
+  totalPeriods: number;
+  cumStock: number;
+  cumMarket: number;
+  months: number;
+  stockSd: number;
+  marketSd: number;
+  peak: number;
+}

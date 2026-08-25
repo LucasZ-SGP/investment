@@ -1,13 +1,14 @@
 import "./styles.css";
-import type { FactsFile, TargetFile } from "./types";
+import type { FactsFile, Report, TargetFile } from "./types";
 import {
   type Book, cacheBook, getToken, loadBook, loadSettings, normalise,
   saveSettings, type Settings, tokenState,
 } from "./store";
-import { EMPTY_FACTS, EMPTY_TARGETS, loadPrivate, saveBookRemote } from "./private";
+import { EMPTY_FACTS, EMPTY_TARGETS, loadPrivate, loadReport, saveBookRemote } from "./private";
 
 import * as strategy from "./pages/strategy";
 import * as amf20 from "./pages/amf20";
+import * as research from "./pages/research";
 import * as settingsPage from "./pages/settings";
 
 export interface Ctx {
@@ -30,6 +31,8 @@ export interface Ctx {
   commitBook(): Promise<void>;
   refresh(): void;
   unlock(passphrase?: string): Promise<void>;
+  /** Fetch one company report from the private repo. */
+  report(ticker: string): Promise<Report>;
 }
 
 export interface Page {
@@ -44,9 +47,10 @@ export interface Page {
 const PAGES: Record<string, Page> = {
   strategy: { ...strategy, needsUnlock: true },
   amf20: { ...amf20, needsUnlock: true },
+  research: { ...research, needsUnlock: true },
   settings: settingsPage,
 };
-const ORDER = ["strategy", "amf20", "settings"];
+const ORDER = ["strategy", "amf20", "research", "settings"];
 
 let bookSha: string | null = null;
 
@@ -94,6 +98,12 @@ async function boot() {
 
     refresh() {
       draw(app, ctx);
+    },
+
+    async report(ticker) {
+      const token = await getToken();
+      if (!token) throw new Error("会话已锁定，请刷新页面重新解锁");
+      return loadReport(token, ctx.settings.privateRepo, ctx.settings.basePath, ticker);
     },
 
     async unlock(passphrase) {

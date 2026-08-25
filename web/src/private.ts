@@ -13,7 +13,7 @@
  * or any position.
  */
 import { readText, writeText } from "./github";
-import type { FactsFile, TargetFile } from "./types";
+import type { FactsFile, Report, TargetFile } from "./types";
 import { type Book, EMPTY_BOOK, migrate } from "./store";
 import { DEFAULT_STRATEGY_DOC } from "./strategyDoc";
 
@@ -97,6 +97,21 @@ export async function loadPrivate(
     bookSha: bookFile?.sha ?? null,
     missing,
   };
+}
+
+/** Fetch a single company report. Reports are per-ticker files so opening one
+ *  costs a single request rather than pulling every company's history. */
+export async function loadReport(
+  token: string, repo: string, basePath: string, ticker: string,
+): Promise<Report> {
+  const path = under(basePath, `data/research/${ticker}.json`);
+  const f = await readText(token, repo, path);
+  if (!f) throw new Error(`没有该标的的报告（${path}）—— 管线可能尚未为它生成`);
+  try {
+    return JSON.parse(f.text) as Report;
+  } catch {
+    throw new Error(`${path} 不是合法 JSON`);
+  }
 }
 
 /** Persist holdings. Returns the new blob SHA for the next optimistic write. */
