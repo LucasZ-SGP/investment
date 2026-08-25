@@ -1,5 +1,5 @@
 import "./styles.css";
-import type { FactsFile, Industries, Report, TargetFile } from "./types";
+import type { CompanyNotes, FactsFile, Industries, Report, TargetFile } from "./types";
 import {
   type Book, cacheBook, getToken, loadBook, loadSettings, normalise,
   saveSettings, type Settings, tokenState,
@@ -18,6 +18,7 @@ export interface Ctx {
   targets: TargetFile;
   facts: FactsFile;
   industries: Industries;
+  notes: CompanyNotes;
   book: Book;
   /** Empty until unlocked. Every page except 设置 requires this. */
   unlocked: boolean;
@@ -64,6 +65,7 @@ async function boot() {
     targets: EMPTY_TARGETS,
     facts: EMPTY_FACTS,
     industries: { sectors: [] },
+    notes: { companies: {} },
     // The cached copy keeps the page usable offline; the private repo is
     // authoritative and replaces it on unlock.
     book: loadBook(),
@@ -119,6 +121,7 @@ async function boot() {
       ctx.targets = data.targets;
       ctx.facts = data.facts;
       ctx.industries = data.industries;
+      ctx.notes = data.notes;
       ctx.book = data.book;
       bookSha = data.bookSha;
       cacheBook(data.book);

@@ -155,3 +155,14 @@ export interface Industries {
   _updated?: string;
   sectors: Sector[];
 }
+
+/** Editor-written Chinese summary for one company, grounded in its filing. */
+export interface CompanyNote {
+  zh: string;
+  risks: string[];
+}
+
+export interface CompanyNotes {
+  _updated?: string;
+  companies: Record<string, CompanyNote>;
+}

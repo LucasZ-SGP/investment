@@ -1,5 +1,5 @@
 import type { Ctx } from "../main";
-import type { Report, Sector } from "../types";
+import type { CompanyNote, Report, Sector } from "../types";
 import { label, labelWithNote } from "../terms";
 
 export const title = "研究";
@@ -179,41 +179,63 @@ function sectorFor(sic: string | undefined, sectors: Sector[]): Sector | null {
  * linked instead. A plausible-looking fragment lifted from the wrong section
  * would be worse than nothing.
  */
-function businessSection(r: Report): string {
+function businessSection(r: Report, note: CompanyNote | null): string {
   const n = r.narrative;
   const src = n?.source;
   const link = src
     ? `<a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.form)} · ${esc(src.filed)}</a>`
     : "";
 
-  if (!n?.businessOverview && !n?.competition) {
-    return `<div class="callout warn"><span class="title">未能自动提取业务描述</span>
-      <p>该公司年报的排版无法可靠解析。${src ? `请直接查阅原文：${link}` : ""}</p></div>`;
+  if (!note && !n?.businessOverview && !n?.competition) {
+    return `<div class="callout warn"><span class="title">暂无业务描述</span>
+      <p>该公司尚无中文摘要，年报排版也无法可靠解析。${src ? `请直接查阅原文：${link}` : ""}</p></div>`;
   }
 
+  // Chinese first. The filing text is English by nature -- it is quoted from an
+  // SEC document -- so it sits underneath as the source to check against,
+  // rather than as the thing to read.
+  const english = [
+    n?.businessOverview
+      ? `<h5 style="margin:14px 0 6px;font-size:13px;color:var(--muted)">Business Overview（年报原文）</h5>
+         <p style="margin:0;font-size:13.5px;line-height:1.7;color:var(--muted)">${esc(n.businessOverview)}</p>`
+      : "",
+    n?.competition
+      ? `<h5 style="margin:16px 0 6px;font-size:13px;color:var(--muted)">Competition（年报原文）</h5>
+         <p style="margin:0;font-size:13.5px;line-height:1.7;color:var(--muted)">${esc(n.competition)}</p>`
+      : "",
+    n?.riskHeadings?.length
+      ? `<h5 style="margin:16px 0 6px;font-size:13px;color:var(--muted)">Risk Factors（年报 Item 1A 披露，${n.riskHeadings.length} 条）</h5>
+         <ul style="margin:0;padding-left:20px;font-size:13px;line-height:1.65;color:var(--muted)">
+           ${n.riskHeadings.map((h) => `<li style="margin-bottom:5px">${esc(h)}</li>`).join("")}
+         </ul>`
+      : "",
+  ].filter(Boolean).join("");
+
   return `
-${n.businessOverview ? `
-<h4>业务概述 Business Overview</h4>
-<div class="card" style="border-left:3px solid var(--border-strong)">
-  <p style="margin:0;font-size:14.5px;line-height:1.75">${esc(n.businessOverview)}</p>
+${note ? `
+<div class="card" style="border-left:3px solid var(--accent)">
+  <p style="margin:0;font-size:15px;line-height:1.85">${esc(note.zh)}</p>
 </div>` : ""}
-${n.competition ? `
-<h4>竞争格局（公司自述）Competition, in the company's words</h4>
-<div class="card" style="border-left:3px solid var(--border-strong)">
-  <p style="margin:0;font-size:14.5px;line-height:1.75">${esc(n.competition)}</p>
-</div>` : ""}
-${n.riskHeadings?.length ? `
-<h4>风险因素 Risk Factors <span class="badge">公司自行披露 ${n.riskHeadings.length} 条</span></h4>
+${note?.risks?.length ? `
+<h4>主要风险 Key Risks</h4>
 <div class="card">
-  <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.7">
-    ${n.riskHeadings.map((h) => `<li style="margin-bottom:7px">${esc(h)}</li>`).join("")}
+  <ul style="margin:0;padding-left:20px;font-size:14.5px;line-height:1.8">
+    ${note.risks.map((x) => `<li style="margin-bottom:8px">${esc(x)}</li>`).join("")}
   </ul>
   <p class="hint" style="margin-bottom:0">
-    这些是公司在年报 Item 1A 中<strong>自己列出</strong>的风险，法律上要求如实披露。
-    排序按原文，不代表严重程度。
+    根据该公司年报 Item 1A 披露的风险因素归纳，非全部。英文原始披露见下方折叠区。
   </p>
 </div>` : ""}
-<p class="hint">以上均为公司年报原文摘录${link ? `（来源：${link}）` : ""}，未经改写。</p>`;
+${english ? `
+<details style="margin-top:14px">
+  <summary style="cursor:pointer;font-size:13.5px;color:var(--muted)">
+    展开年报英文原文对照${link ? `（${link}）` : ""}
+  </summary>
+  <div class="card" style="margin-top:8px">${english}
+    <p class="hint" style="margin-bottom:0">以上为年报原文摘录，未经改写。上方中文为编者基于此归纳。</p>
+  </div>
+</details>` : ""}
+${!note ? `<p class="hint">该公司暂无中文摘要，可在私有仓库的 <code>companies.json</code> 中补充。</p>` : ""}`;
 }
 
 /** Editor-written sector background. Explicitly separated from anything quoted
@@ -475,15 +497,16 @@ ${loading ? `<div class="empty"><div class="big">⏳</div>正在载入 ${esc(loa
 ${error ? `<div class="callout bad"><span class="title">载入失败</span><p>${esc(error)}</p></div>` : ""}
 ${!current && !loading ? `<div class="empty"><div class="big">◇</div>
    <p>选择上方任一标的查看报告</p></div>` : ""}
-${report ? renderReport(report, ctx.industries.sectors ?? []) : ""}
+${report ? renderReport(report, ctx.industries.sectors ?? [], ctx.notes.companies ?? {}) : ""}
 </div>`;
 }
 
-function renderReport(r: Report, sectors: Sector[]): string {
+function renderReport(r: Report, sectors: Sector[], notes: Record<string, CompanyNote>): string {
   const v = r.valuation;
   const m = r.meta;
   const obs = observations(r);
   const sec = sectorFor(m.sic, sectors);
+  const note = notes[r.ticker] ?? null;
   const badge = { bad: "bad", warn: "warn", good: "good", "": "" } as const;
 
   return `
@@ -497,7 +520,7 @@ function renderReport(r: Report, sectors: Sector[]): string {
 </p>
 
 <h3>这家公司是做什么的 What the Company Does</h3>
-${businessSection(r)}
+${businessSection(r, note)}
 
 <h3>行业背景 Sector Context</h3>
 ${sectorSection(sec)}
